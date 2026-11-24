@@ -4,17 +4,17 @@
   "execution": "trusted-worker",
   "id": "github-trending",
   "name": "GitHub Trending",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Browse today's, this week's and this month's trending GitHub repositories in a side panel, optionally filtered by language.",
   "author": { "name": "Eric Tai" },
   "repository": "https://github.com/cplog/trending-for-orca",
   "license": "MIT",
-  "engines": { "orca": ">=1.4.246" },
+  "engines": { "orca": ">=1.4.247" },
   "pluginApi": 1,
   "main": "worker/main.mjs",
   "contributes": {
     "panels": [
-      { "id": "trending", "title": "GitHub Trending", "icon": "rocket", "entry": "panel/index.html" }
+      { "id": "trending", "title": "GitHub Trending", "icon": "rocket", "entry": "panel/panel.tsx", "ui": "components" }
     ]
   }
 }

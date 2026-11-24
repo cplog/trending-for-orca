@@ -77,6 +77,8 @@ const error = atom<string | null>(null)
 const query = atom('')
 /** The repository whose actions are showing, and the agent action waiting for a confirmation. */
 const expanded = atom<string | null>(null)
+type Insight = { useCase: string; tryIt: string; source: string }
+const insight = atom<Insight | null>(null)
 const pending = atom<{ fullName: string } | null>(null)
 type ActionContext = {
   agent: string
@@ -183,10 +185,18 @@ async function confirm(): Promise<void> {
   }
 }
 
-function toggleExpanded(fullName: string): void {
+async function toggleExpanded(fullName: string): Promise<void> {
   set(pending, null)
   set(notice, null)
+  set(insight, null)
   update(expanded, (current) => (current === fullName ? null : fullName))
+  if (read(expanded) !== fullName) return
+  try {
+    const idea: Insight | null = await plugin.request('trending.insight', { fullName }, { timeoutMs: 3000 })
+    if (read(expanded) === fullName) set(insight, idea)
+  } catch {
+    // Usage ideas are optional; the row and its actions still work offline.
+  }
 }
 
 function toggleSaved(repo: Repo): void {
@@ -258,7 +268,7 @@ function RepoRows({ repos, fresh, gained, showLanguage }: { repos: Repo[]; fresh
                   size="sm"
                   variant="ghost"
                   label={isOpen ? `Hide actions for ${r.fullName}` : `Show actions for ${r.fullName}`}
-                  onPress={() => toggleExpanded(r.fullName)}
+                  onPress={() => void toggleExpanded(r.fullName)}
                 />
               </Row>
             </Box>
@@ -279,9 +289,18 @@ function Actions({ repo }: { repo: Repo }) {
   const message = read(notice)
   const mine = action?.fullName === repo.fullName ? action : null
   const tryName = `try-${repo.fullName.split('/')[1]}`
+  const idea = read(insight)
 
   return (
     <Stack gap="sm">
+      {idea ? (
+        <Stack gap="xs">
+          <Text weight="semibold">What could I use this for?</Text>
+          <Text size="sm">{idea.useCase}</Text>
+          <Text size="sm">{`Try it: ${idea.tryIt}`}</Text>
+          <Link href={idea.source}>Read the project docs</Link>
+        </Stack>
+      ) : null}
       {!mine ? (
         <Row gap="xs" wrap>
           <Button size="sm" variant="outline" icon="branch" onPress={() => void prepare(repo.fullName)}>

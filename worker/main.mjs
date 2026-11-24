@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { fetchPanelTrending, fetchTrending } from './trending.mjs'
+import { fetchInsight, fetchPanelTrending, fetchTrending } from './trending.mjs'
 
 const bad = (message) => Object.assign(new Error(message), { code: 'invalid_params' })
 
@@ -43,6 +43,7 @@ export default function activate(orca) {
     return AGENTS.includes(agent) ? agent : 'claude'
   }
 
+  orca.panels.handle('trending.insight', ({ fullName }, { signal }) => fetchInsight(fullName, signal))
   orca.panels.handle('trending.list', ({ since, language }, { signal }) => fetchPanelTrending(since, language, signal))
 
   // Language of the focused workspace, from marker files in its folder. Local workspaces only.

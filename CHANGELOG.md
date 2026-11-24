@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0
+
+- Expand a supported repository to see a practical usage idea and its public source. The live list and workspace action still work without the ideas feed.
+
 ## 1.4.1
 
 - Removed **Ask an agent**. A start-up question in some agents (such as Claude Code's Code Mode prompt) swallowed its question, so it often opened an empty agent. **Try in a workspace** stays.

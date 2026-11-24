@@ -15,6 +15,20 @@ export async function fetchTrending(since, language, signal) {
   return parseTrending(await res.text())
 }
 
+/** Match locally so the feed never receives the repository name. */
+export async function fetchInsight(fullName, signal) {
+  if (typeof fullName !== 'string' || !/^[\w.-]+\/[\w.-]+$/.test(fullName)) return null
+  const key = fullName.toLowerCase()
+  const res = await fetch('https://cplog.github.io/trending/insights.json', { signal, credentials: 'omit', redirect: 'error' })
+  if (!res.ok) return null
+  const entry = (await res.json())?.[key]
+  if (![entry?.useCase, entry?.tryIt].every(s => typeof s === 'string' && s.trim() && s.length <= 500)) return null
+  if (!URL.canParse(entry.source)) return null
+  const url = new URL(entry.source)
+  if (url.origin !== 'https://github.com' || url.username || url.password || !url.pathname.toLowerCase().startsWith(`/${key}/blob/`)) return null
+  return { useCase: entry.useCase, tryIt: entry.tryIt, source: url.href }
+}
+
 /** Keep GitHub's live ordering. The public tracker only samples all-language lists. */
 export async function fetchPanelTrending(since, language, signal) {
   const repos = await fetchTrending(since, language, signal)

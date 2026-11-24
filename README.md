@@ -6,6 +6,7 @@ Discover trending GitHub repositories without leaving [Orca](https://orca.dev). 
 
 - **Ask an agent** starts your agent in the workspace you have open and asks what the repository does and whether it is relevant there.
 - **Try in a workspace** creates a new workspace in one of your projects and starts an agent there to evaluate the repository for it.
+- **Trending history** on all-language lists shows when the public tracker first saw a project today or saw it on consecutive UTC days across any period. These are observations, not a repository's age or a change in rank. If today's snapshot isn't available, you still get GitHub's live list.
 - **Match workspace** shows trending repositories for your workspace's language and follows you when you switch.
 - **Saved** keeps the repositories you star in the panel.
 - A **status bar item** shows today's top repository; press it to show or hide the side panel.
@@ -26,7 +27,7 @@ The prompt contains only the repository's address. The agent is told to treat th
 - **Start agents** and **create workspaces.** Only when you confirm one of the two agent actions.
 - **Its own settings.** The agent choice.
 
-It collects nothing and sends nothing anywhere except those requests to GitHub.
+The all-language panel and CLI also read a fixed public snapshot from `https://cplog.github.io/trending/data.json`. That request contains no workspace, language, saved list or vault data.
 
 ## For agents and scripts
 

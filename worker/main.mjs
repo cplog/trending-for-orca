@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { fetchTrending } from './trending.mjs'
+import { fetchPanelTrending, fetchTrending } from './trending.mjs'
 
 const bad = (message) => Object.assign(new Error(message), { code: 'invalid_params' })
 
@@ -45,7 +45,7 @@ export default function activate(orca) {
     return AGENTS.includes(agent) ? agent : 'claude'
   }
 
-  orca.panels.handle('trending.list', ({ since, language }, { signal }) => fetchTrending(since, language, signal))
+  orca.panels.handle('trending.list', ({ since, language }, { signal }) => fetchPanelTrending(since, language, signal))
 
   // Language of the focused workspace, from marker files in its folder. Local workspaces only.
   orca.panels.handle('workspace.language', async () => {

@@ -33,6 +33,8 @@ type Repo = {
   language: string
   stars: number
   starsInPeriod: number
+  streakDays?: number
+  firstSeenToday?: boolean
 }
 type Entry = { at: number; repos: Repo[]; fresh: string[] }
 type Filters = { tab: string; lang: string }
@@ -239,7 +241,9 @@ function RepoRows({ repos, fresh, gained, showLanguage }: { repos: Repo[]; fresh
                   </Text>
                 ) : null}
                 <Row gap="xs" wrap align="center">
-                  {fresh.has(r.fullName) ? <Badge tone="accent">new</Badge> : null}
+                  {gained && r.streakDays ? <Badge>Seen {r.streakDays} days running</Badge>
+                    : gained && r.firstSeenToday ? <Badge tone="accent">First seen today</Badge>
+                    : fresh.has(r.fullName) ? <Badge tone="accent">New to this list</Badge> : null}
                   {r.language && showLanguage ? <Badge>{r.language}</Badge> : null}
                   <Text muted size="xs">
                     {r.starsInPeriod && gained ? `+${fmt.format(r.starsInPeriod)} ${gained} · ` : ''}★ {fmt.format(r.stars)}

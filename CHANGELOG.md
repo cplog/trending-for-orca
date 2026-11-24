@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.0
+
+- See first sightings and consecutive days observed on all-language lists, without replacing live GitHub ranks or uploading workspace data.
+
 ## 1.3.0
 
 - **Ask an agent** about a repository, in the workspace you have open.

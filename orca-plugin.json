@@ -4,8 +4,8 @@
   "execution": "trusted-worker",
   "id": "github-trending",
   "name": "GitHub Trending",
-  "version": "1.2.0",
-  "description": "Discover trending GitHub repositories without leaving Orca. Filter by language and time, match your workspace, and save projects for later.",
+  "version": "1.2.1",
+  "description": "Find your next favorite GitHub project without leaving Orca. Explore trending repositories by language and time, match your workspace, and save finds for later.",
   "author": {
     "name": "Eric Tai"
   },

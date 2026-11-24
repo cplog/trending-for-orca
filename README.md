@@ -1,6 +1,6 @@
 # GitHub Trending for Orca
 
-Discover trending GitHub repositories without leaving [Orca](https://orca.dev). Explore what's popular today, this week or this month, filter by language, and save projects to revisit later.
+Find your next favorite GitHub project without leaving [Orca](https://orca.dev). Explore trending repositories by language and time, match your workspace, and save finds for later.
 
 - **Match workspace** shows trending repositories for your workspace's language and follows you when you switch.
 - **Saved** keeps the repositories you star in the panel.

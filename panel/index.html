@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { margin: 0; padding: 12px; font: 13px system-ui, sans-serif; background: var(--orca-background); color: var(--orca-foreground); }
+  .bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  button, input { font: inherit; color: inherit; background: var(--orca-card); border: 1px solid var(--orca-border); border-radius: var(--orca-radius, 6px); padding: 4px 10px; }
+  button[aria-pressed="true"] { background: var(--orca-primary); color: var(--orca-primary-foreground); }
+  input { flex: 1; min-width: 100px; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--orca-ring); outline-offset: 1px; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  li { padding: 10px 0; border-top: 1px solid var(--orca-border); }
+  .name { font-weight: 600; background: none; border: 0; padding: 0; color: var(--orca-primary); cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+  .desc { margin: 4px 0; color: var(--orca-muted-foreground); overflow-wrap: anywhere; }
+  .meta { color: var(--orca-muted-foreground); font-size: 12px; }
+  #status { color: var(--orca-muted-foreground); }
+  #status.error { color: var(--orca-destructive); }
+</style>
+</head>
+<body>
+<div class="bar" role="group" aria-label="Trending period">
+  <button type="button" data-since="daily" aria-pressed="false">Today</button>
+  <button type="button" data-since="weekly" aria-pressed="true">Week</button>
+  <button type="button" data-since="monthly" aria-pressed="false">Month</button>
+  <input id="lang" type="text" placeholder="language, e.g. rust" aria-label="Language" maxlength="40" />
+</div>
+<p id="status" role="status"></p>
+<ol id="list"></ol>
+<script>
+  let since = 'weekly', timer, seq = 0
+  const $ = (id) => document.getElementById(id)
+  const fmt = new Intl.NumberFormat()
+
+  async function load() {
+    const mine = ++seq // ignore answers that arrive after a newer request
+    $('status').className = ''
+    $('status').textContent = 'Loading…'
+    try {
+      const repos = await orca.plugin.request('trending.list', { since, language: $('lang').value.trim() }, { timeoutMs: 20000 })
+      if (mine !== seq) return
+      $('status').textContent = repos.length ? '' : 'No repositories found.'
+      $('list').replaceChildren(...repos.map(render))
+    } catch (e) {
+      if (mine !== seq) return
+      $('list').replaceChildren()
+      $('status').className = 'error'
+      $('status').textContent = 'Could not load trending: ' + e.message
+    }
+  }
+
+  function render(r) {
+    const li = document.createElement('li')
+    const name = document.createElement('button')
+    name.className = 'name'
+    name.textContent = r.fullName
+    name.onclick = () => orca.shell.openExternal(r.url)
+    const desc = document.createElement('div')
+    desc.className = 'desc'
+    desc.textContent = r.description
+    const meta = document.createElement('div')
+    meta.className = 'meta'
+    meta.textContent = [r.language, '★ ' + fmt.format(r.stars), r.starsInPeriod ? '+' + fmt.format(r.starsInPeriod) + ' this period' : ''].filter(Boolean).join(' · ')
+    li.append(name, desc, meta)
+    return li
+  }
+
+  document.querySelectorAll('[data-since]').forEach((b) => {
+    b.onclick = () => {
+      since = b.dataset.since
+      document.querySelectorAll('[data-since]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)))
+      load()
+    }
+  })
+  $('lang').oninput = () => { clearTimeout(timer); timer = setTimeout(load, 400) }
+  load()
+</script>
+</body>
+</html>

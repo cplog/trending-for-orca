@@ -1,8 +1,8 @@
 # GitHub Trending for Orca
 
-A side panel for [Orca](https://orca.dev) that lists trending GitHub repositories for today, this week or this month.
+Discover trending GitHub repositories without leaving [Orca](https://orca.dev). Explore what's popular today, this week or this month, filter by language, and save projects to revisit later.
 
-- **Match workspace** shows the language of the workspace you have open, and follows you when you switch.
+- **Match workspace** shows trending repositories for your workspace's language and follows you when you switch.
 - **Saved** keeps the repositories you star in the panel.
 - A **status bar item** shows today's top repository; press it to show or hide the side panel.
 - Commands: "GitHub Trending: Refresh" and "GitHub Trending: Show or hide side panel".

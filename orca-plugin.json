@@ -5,7 +5,7 @@
   "id": "github-trending",
   "name": "GitHub Trending",
   "version": "1.2.0",
-  "description": "Trending GitHub repositories in a side panel: by period and language, matched to the workspace you have open, with a saved list and a status bar item.",
+  "description": "Discover trending GitHub repositories without leaving Orca. Filter by language and time, match your workspace, and save projects for later.",
   "author": {
     "name": "Eric Tai"
   },

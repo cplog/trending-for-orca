@@ -7,6 +7,7 @@ import {
   Callout,
   EmptyState,
   IconButton,
+  Input,
   Link,
   on,
   plugin,
@@ -71,6 +72,20 @@ const saved = atom<Repo[]>('saved', [], { persist: 'plugin' })
 const workspace = atom<{ language: string | null; name: string | null }>({ language: null, name: null })
 const loading = atom(false)
 const error = atom<string | null>(null)
+const query = atom('')
+/** The repository whose actions are showing, and the agent action waiting for a confirmation. */
+const expanded = atom<string | null>(null)
+const pending = atom<{ fullName: string; mode: 'ask' | 'try' } | null>(null)
+type ActionContext = {
+  agent: string
+  workspace: { id: string; name: string } | null
+  projects: { id: string; name: string }[]
+  canCreate: boolean
+}
+const actionContext = atom<ActionContext | null>(null)
+const tryProject = atom('')
+const starting = atom(false)
+const notice = atom<{ tone: 'success' | 'danger'; text: string } | null>(null)
 
 /** The language to ask GitHub for: the workspace's when matching, else the chosen one. */
 const effectiveLang = () => {
@@ -130,6 +145,53 @@ function change(next: Partial<Filters>): void {
   void load()
 }
 
+/** Shows the confirmation for an agent action, with what it would act on. Nothing starts yet. */
+async function prepare(fullName: string, mode: 'ask' | 'try'): Promise<void> {
+  set(notice, null)
+  set(actionContext, null)
+  set(pending, { fullName, mode })
+  try {
+    const context: ActionContext = await plugin.request('actions.context', {}, { timeoutMs: 10000 })
+    set(actionContext, context)
+    if (!context.projects.some((p) => p.id === read(tryProject))) set(tryProject, context.projects[0]?.id ?? '')
+  } catch (e) {
+    set(pending, null)
+    set(notice, { tone: 'danger', text: e instanceof Error ? e.message : String(e) })
+  }
+}
+
+/** Runs the confirmed action. Only ever called from the Start or Create button. */
+async function confirm(): Promise<void> {
+  const action = read(pending)
+  const context = read(actionContext)
+  if (!action || !context || read(starting)) return
+  set(starting, true)
+  try {
+    if (action.mode === 'ask') {
+      const { workspace } = await plugin.request('agent.ask', { fullName: action.fullName }, { timeoutMs: 60000 })
+      set(notice, { tone: 'success', text: `Started ${context.agent} in ${workspace}. Look for its new terminal there.` })
+    } else {
+      const { name } = await plugin.request(
+        'workspace.try',
+        { fullName: action.fullName, projectId: read(tryProject) },
+        { timeoutMs: 120000 }
+      )
+      set(notice, { tone: 'success', text: `Created the workspace ${name} and started ${context.agent} in it.` })
+    }
+    set(pending, null)
+  } catch (e) {
+    set(notice, { tone: 'danger', text: e instanceof Error ? e.message : String(e) })
+  } finally {
+    set(starting, false)
+  }
+}
+
+function toggleExpanded(fullName: string): void {
+  set(pending, null)
+  set(notice, null)
+  update(expanded, (current) => (current === fullName ? null : fullName))
+}
+
 function toggleSaved(repo: Repo): void {
   update(saved, (list) =>
     list.some((r) => r.fullName === repo.fullName)
@@ -151,20 +213,29 @@ const short = (s: string) => (s.length > 110 ? s.slice(0, 107).trimEnd() + '…'
 
 function RepoRows({ repos, fresh, gained, showLanguage }: { repos: Repo[]; fresh: Set<string>; gained: string; showLanguage: boolean }) {
   const savedNames = new Set(read(saved).map((r) => r.fullName))
+  const open = read(expanded)
+  const q = read(query).trim().toLowerCase()
+  const shown = q
+    ? repos.filter((r) => `${r.fullName} ${r.description} ${r.language}`.toLowerCase().includes(q))
+    : repos
+  if (shown.length === 0) {
+    return <EmptyState title="No match" description={`Nothing in this list matches "${read(query).trim()}".`} icon="search" />
+  }
   return (
     <Stack gap="sm">
-      {repos.map((r) => {
+      {shown.map((r) => {
         const isSaved = savedNames.has(r.fullName)
+        const isOpen = open === r.fullName
         return (
           <Stack key={r.fullName} gap="sm">
-            <Box direction="row" gap="xs" justify="between" align="start">
-              <Box grow gap="xs" minWidth={0}>
+            <Box direction="row" gap="xs" justify="between" align="start" width="100%">
+              <Box grow shrink gap="xs" minWidth={0} width="100%">
                 <Text weight="semibold">
                   <Link href={r.url}>{r.fullName}</Link>
                 </Text>
                 {r.description ? (
                   <Text muted size="sm">
-                    {short(r.description)}
+                    {isOpen ? r.description : short(r.description)}
                   </Text>
                 ) : null}
                 <Row gap="xs" wrap align="center">
@@ -175,18 +246,116 @@ function RepoRows({ repos, fresh, gained, showLanguage }: { repos: Repo[]; fresh
                   </Text>
                 </Row>
               </Box>
-              <IconButton
-                icon="star"
-                size="sm"
-                variant={isSaved ? 'solid' : 'ghost'}
-                label={isSaved ? `Remove ${r.fullName} from saved` : `Save ${r.fullName}`}
-                onPress={() => toggleSaved(r)}
-              />
+              <Row gap="none">
+                <IconButton
+                  icon="star"
+                  size="sm"
+                  variant={isSaved ? 'solid' : 'ghost'}
+                  label={isSaved ? `Remove ${r.fullName} from saved` : `Save ${r.fullName}`}
+                  onPress={() => toggleSaved(r)}
+                />
+                <IconButton
+                  icon={isOpen ? 'collapse' : 'expand'}
+                  size="sm"
+                  variant="ghost"
+                  label={isOpen ? `Hide actions for ${r.fullName}` : `Show actions for ${r.fullName}`}
+                  onPress={() => toggleExpanded(r.fullName)}
+                />
+              </Row>
             </Box>
+            {isOpen ? <Actions repo={r} /> : null}
             <Separator />
           </Stack>
         )
       })}
+    </Stack>
+  )
+}
+
+/** The actions of one expanded repository. An agent starts only after the person confirms. */
+function Actions({ repo }: { repo: Repo }) {
+  const action = read(pending)
+  const context = read(actionContext)
+  const busy = read(starting)
+  const message = read(notice)
+  const mine = action?.fullName === repo.fullName ? action : null
+  const tryName = `try-${repo.fullName.split('/')[1]}`
+
+  return (
+    <Stack gap="sm">
+      {!mine ? (
+        <Row gap="xs" wrap>
+          <Button size="sm" variant="outline" icon="agent" onPress={() => void prepare(repo.fullName, 'ask')}>
+            Ask an agent
+          </Button>
+          <Button size="sm" variant="outline" icon="branch" onPress={() => void prepare(repo.fullName, 'try')}>
+            Try in a workspace
+          </Button>
+        </Row>
+      ) : null}
+
+      {mine && !context ? <Skeleton shape="text" lines={2} label="Checking your workspaces" /> : null}
+
+      {mine && context && mine.mode === 'ask' ? (
+        <Callout tone="neutral" icon="agent" title="Ask an agent about this repository">
+          <Text size="sm">
+            {context.workspace
+              ? `Starts ${context.agent} in the workspace "${context.workspace.name}" and asks what ${repo.fullName} does and whether it is relevant here. This uses your ${context.agent} account.`
+              : 'Open a workspace first. The agent starts in the workspace you have open.'}
+          </Text>
+          <Row gap="xs">
+            <Button size="sm" variant="solid" disabled={!context.workspace || busy} onPress={() => void confirm()}>
+              {busy ? 'Starting…' : `Start ${context.agent}`}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onPress={() => set(pending, null)}>
+              Cancel
+            </Button>
+          </Row>
+        </Callout>
+      ) : null}
+
+      {mine && context && mine.mode === 'try' ? (
+        <Callout tone="neutral" icon="branch" title="Try it in a new workspace">
+          {context.canCreate && context.projects.length > 0 ? (
+            <Stack gap="sm">
+              <Select
+                label="Project"
+                value={read(tryProject)}
+                options={context.projects.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(id) => set(tryProject, id)}
+              />
+              <Text size="sm">
+                {`Creates a new workspace named "${tryName}" in that project and starts ${context.agent} there to evaluate ${repo.fullName} for it. The agent is told not to change files. This uses your ${context.agent} account.`}
+              </Text>
+            </Stack>
+          ) : (
+            <Text size="sm">
+              {context.canCreate
+                ? 'Add a Git project to Orca first. The new workspace is created in one of your projects.'
+                : 'This Orca version cannot create workspaces from a plugin. Update Orca to use this.'}
+            </Text>
+          )}
+          <Row gap="xs">
+            <Button
+              size="sm"
+              variant="solid"
+              disabled={!context.canCreate || !read(tryProject) || busy}
+              onPress={() => void confirm()}
+            >
+              {busy ? 'Creating…' : 'Create workspace'}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={busy} onPress={() => set(pending, null)}>
+              Cancel
+            </Button>
+          </Row>
+        </Callout>
+      ) : null}
+
+      {message ? (
+        <Callout tone={message.tone} title={message.tone === 'success' ? 'Started' : 'Could not start'}>
+          <Text size="sm">{message.text}</Text>
+        </Callout>
+      ) : null}
     </Stack>
   )
 }
@@ -213,6 +382,15 @@ function Trending({ since }: { since: string }) {
           <IconButton icon="refresh" label="Refresh" variant="ghost" disabled={busy} onPress={() => void load(true)} />
         </Row>
       </Row>
+
+      <Input
+        label="Filter this list"
+        labelHidden
+        type="search"
+        placeholder="Filter this list"
+        value={read(query)}
+        onChange={(value) => set(query, value)}
+      />
 
       {f.lang === 'auto' ? (
         <Text muted size="xs">

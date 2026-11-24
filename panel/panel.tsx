@@ -44,8 +44,8 @@ const PERIODS = [
 ]
 // Values are GitHub's own /trending/<language> names, plus 'auto' and 'all'.
 const LANGUAGES = [
-  { value: 'auto', label: 'Match workspace' },
   { value: 'all', label: 'All languages' },
+  { value: 'auto', label: 'Match workspace' },
   { value: 'typescript', label: 'TypeScript' },
   { value: 'javascript', label: 'JavaScript' },
   { value: 'python', label: 'Python' },
@@ -64,8 +64,8 @@ const LANGUAGES = [
 const labelOf = (lang: string) => LANGUAGES.find((l) => l.value === lang)?.label ?? lang
 
 // Remembered between runs, so the panel opens on the person's last view with data already there.
-// version 2: `since` became `tab` (it can also be 'saved'), and the language defaults to the workspace's.
-const filters = atom<Filters>('filters', { tab: 'weekly', lang: 'auto' }, { persist: 'plugin', version: 2 })
+// version 3: `since` became `tab` (it can also be 'saved'). All languages is the default; matching the workspace is opt-in.
+const filters = atom<Filters>('filters', { tab: 'weekly', lang: 'all' }, { persist: 'plugin', version: 3 })
 const cache = atom<Record<string, Entry>>('cache', {}, { persist: 'plugin' })
 const saved = atom<Repo[]>('saved', [], { persist: 'plugin' })
 const workspace = atom<{ language: string | null; name: string | null }>({ language: null, name: null })

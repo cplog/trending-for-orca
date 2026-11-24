@@ -4,8 +4,8 @@
   "execution": "trusted-worker",
   "id": "github-trending",
   "name": "GitHub Trending",
-  "version": "1.4.0",
-  "description": "Discover trending GitHub repositories without leaving Orca. Filter by language and time, save projects, and ask an agent about one or try it in a new workspace.",
+  "version": "1.4.1",
+  "description": "Discover trending GitHub repositories without leaving Orca. Filter by language and time, save projects, or try one in a new workspace with an agent.",
   "author": {
     "name": "Eric Tai"
   },
@@ -50,7 +50,7 @@
       {
         "key": "agent",
         "title": "Agent",
-        "description": "The agent that Ask an agent and Try in a workspace start.",
+        "description": "The agent that Try in a workspace starts.",
         "type": "string",
         "enum": [
           "claude",

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- Removed **Ask an agent**. A start-up question in some agents (such as Claude Code's Code Mode prompt) swallowed its question, so it often opened an empty agent. **Try in a workspace** stays.
+
 ## 1.4.0
 
 - See first sightings and consecutive days observed on all-language lists, without replacing live GitHub ranks or uploading workspace data.

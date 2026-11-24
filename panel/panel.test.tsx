@@ -19,16 +19,12 @@ const context = {
   canCreate: true
 }
 
-function host(asked: string[], tried: unknown[]) {
+function host(tried: unknown[]) {
   return mockHost({
     requests: {
       'trending.list': [repo, other],
       'workspace.language': { language: null, name: null },
       'actions.context': context,
-      'agent.ask': ({ fullName }: { fullName: string }) => {
-        asked.push(fullName)
-        return { workspace: 'main' }
-      },
       'workspace.try': (input: unknown) => {
         tried.push(input)
         return { name: 'try-one' }
@@ -37,41 +33,26 @@ function host(asked: string[], tried: unknown[]) {
   })
 }
 
-test('an agent starts only after the person confirms', async () => {
-  const asked: string[] = []
-  const view = await mount(panel, { host: host(asked, []) })
-
-  await view.press({ label: 'Show actions for a/one' })
-  await view.press({ text: 'Ask an agent' })
-  assert.ok(view.find({ text: /Starts claude in the workspace "main"/ }))
-  assert.deepEqual(asked, [], 'nothing starts before the confirmation')
-
-  await view.press({ text: 'Start claude' })
-  assert.deepEqual(asked, ['a/one'])
-  assert.ok(view.find({ text: /Started claude in main/ }))
-  assert.deepEqual(view.errors, [])
-  await view.unmount()
-})
-
-test('cancel starts nothing, and try creates a workspace in the chosen project', async () => {
-  const asked: string[] = []
+test('a workspace is created only after the person confirms, and cancel creates nothing', async () => {
   const tried: unknown[] = []
-  const view = await mount(panel, { host: host(asked, tried) })
+  const view = await mount(panel, { host: host(tried) })
 
   await view.press({ label: 'Show actions for a/one' })
-  await view.press({ text: 'Ask an agent' })
+  await view.press({ text: 'Try in a workspace' })
+  assert.ok(view.find({ text: /Creates a new workspace named "try-one"/ }))
   await view.press({ text: 'Cancel' })
-  assert.deepEqual(asked, [])
+  assert.deepEqual(tried, [], 'nothing is created before the confirmation')
 
   await view.press({ text: 'Try in a workspace' })
   await view.press({ text: 'Create workspace' })
   assert.deepEqual(tried, [{ fullName: 'a/one', projectId: 'p1' }])
+  assert.ok(view.find({ text: /Created the workspace try-one/ }))
   assert.deepEqual(view.errors, [])
   await view.unmount()
 })
 
 test('the filter narrows the list and saving keeps a repository', async () => {
-  const view = await mount(panel, { host: host([], []) })
+  const view = await mount(panel, { host: host([]) })
 
   await view.type({ label: 'Filter this list' }, 'second')
   assert.equal(view.find({ text: 'a/one' }), null)

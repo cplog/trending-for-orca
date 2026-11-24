@@ -77,7 +77,7 @@ const error = atom<string | null>(null)
 const query = atom('')
 /** The repository whose actions are showing, and the agent action waiting for a confirmation. */
 const expanded = atom<string | null>(null)
-const pending = atom<{ fullName: string; mode: 'ask' | 'try' } | null>(null)
+const pending = atom<{ fullName: string } | null>(null)
 type ActionContext = {
   agent: string
   workspace: { id: string; name: string } | null
@@ -148,10 +148,10 @@ function change(next: Partial<Filters>): void {
 }
 
 /** Shows the confirmation for an agent action, with what it would act on. Nothing starts yet. */
-async function prepare(fullName: string, mode: 'ask' | 'try'): Promise<void> {
+async function prepare(fullName: string): Promise<void> {
   set(notice, null)
   set(actionContext, null)
-  set(pending, { fullName, mode })
+  set(pending, { fullName })
   try {
     const context: ActionContext = await plugin.request('actions.context', {}, { timeoutMs: 10000 })
     set(actionContext, context)
@@ -169,17 +169,12 @@ async function confirm(): Promise<void> {
   if (!action || !context || read(starting)) return
   set(starting, true)
   try {
-    if (action.mode === 'ask') {
-      const { workspace } = await plugin.request('agent.ask', { fullName: action.fullName }, { timeoutMs: 60000 })
-      set(notice, { tone: 'success', text: `Started ${context.agent} in ${workspace}. Look for its new terminal there. If the agent asks a start-up question first, answer it; you may then need to ask again.` })
-    } else {
-      const { name } = await plugin.request(
-        'workspace.try',
-        { fullName: action.fullName, projectId: read(tryProject) },
-        { timeoutMs: 120000 }
-      )
-      set(notice, { tone: 'success', text: `Created the workspace ${name} and started ${context.agent} in it.` })
-    }
+    const { name } = await plugin.request(
+      'workspace.try',
+      { fullName: action.fullName, projectId: read(tryProject) },
+      { timeoutMs: 120000 }
+    )
+    set(notice, { tone: 'success', text: `Created the workspace ${name} and started ${context.agent} in it.` })
     set(pending, null)
   } catch (e) {
     set(notice, { tone: 'danger', text: e instanceof Error ? e.message : String(e) })
@@ -289,10 +284,7 @@ function Actions({ repo }: { repo: Repo }) {
     <Stack gap="sm">
       {!mine ? (
         <Row gap="xs" wrap>
-          <Button size="sm" variant="outline" icon="agent" onPress={() => void prepare(repo.fullName, 'ask')}>
-            Ask an agent
-          </Button>
-          <Button size="sm" variant="outline" icon="branch" onPress={() => void prepare(repo.fullName, 'try')}>
+          <Button size="sm" variant="outline" icon="branch" onPress={() => void prepare(repo.fullName)}>
             Try in a workspace
           </Button>
         </Row>
@@ -300,25 +292,7 @@ function Actions({ repo }: { repo: Repo }) {
 
       {mine && !context ? <Skeleton shape="text" lines={2} label="Checking your workspaces" /> : null}
 
-      {mine && context && mine.mode === 'ask' ? (
-        <Callout tone="neutral" icon="agent" title="Ask an agent about this repository">
-          <Text size="sm">
-            {context.workspace
-              ? `Starts ${context.agent} in the workspace "${context.workspace.name}" and asks what ${repo.fullName} does and whether it is relevant here. This uses your ${context.agent} account.`
-              : 'Open a workspace first. The agent starts in the workspace you have open.'}
-          </Text>
-          <Row gap="xs">
-            <Button size="sm" variant="solid" disabled={!context.workspace || busy} onPress={() => void confirm()}>
-              {busy ? 'Starting…' : `Start ${context.agent}`}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onPress={() => set(pending, null)}>
-              Cancel
-            </Button>
-          </Row>
-        </Callout>
-      ) : null}
-
-      {mine && context && mine.mode === 'try' ? (
+      {mine && context ? (
         <Callout tone="neutral" icon="branch" title="Try it in a new workspace">
           {context.canCreate && context.projects.length > 0 ? (
             <Stack gap="sm">

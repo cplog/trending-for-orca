@@ -169,7 +169,7 @@ async function confirm(): Promise<void> {
   try {
     if (action.mode === 'ask') {
       const { workspace } = await plugin.request('agent.ask', { fullName: action.fullName }, { timeoutMs: 60000 })
-      set(notice, { tone: 'success', text: `Started ${context.agent} in ${workspace}. Look for its new terminal there.` })
+      set(notice, { tone: 'success', text: `Started ${context.agent} in ${workspace}. Look for its new terminal there. If the agent asks a start-up question first, answer it; you may then need to ask again.` })
     } else {
       const { name } = await plugin.request(
         'workspace.try',

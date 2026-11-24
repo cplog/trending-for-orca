@@ -1,13 +1,23 @@
 # GitHub Trending for Orca
 
-A side panel for [Orca](https://orca.dev) that lists trending GitHub repositories for today, this week or this month, with an optional language filter. Click a repository name to open it.
+A side panel for [Orca](https://orca.dev) that lists trending GitHub repositories for today, this week or this month.
 
-It reads `github.com/trending` (GitHub has no trending API) from a plugin worker, so Orca asks you to approve full access when you install it. It collects nothing and sends nothing anywhere except that one request to GitHub.
+- **Match workspace** shows the language of the workspace you have open, and follows you when you switch.
+- **Saved** keeps the repositories you star in the panel.
+- A **status bar item** shows today's top repository; press it to show or hide the side panel.
+- Commands: "GitHub Trending: Refresh" and "GitHub Trending: Show or hide side panel".
+
+## Access it asks for
+
+- **Runs its own code (full access).** A panel cannot use the network, so a worker reads `github.com/trending` (GitHub has no trending API). While the plugin is enabled the worker stays running and reads that page every 30 minutes for the status bar item.
+- **Read your workspaces.** Used only to find the folder of the focused workspace and look for marker files such as `package.json` or `Cargo.toml`.
+
+It collects nothing and sends nothing anywhere except those requests to GitHub.
 
 ## Develop
 
 ```
-node --test test/          # one test hits github.com/trending live
-orca plugin validate .
+node --test test/          # one test reads github.com/trending live
+orca plugin check .        # renders the scenarios in panel/panel.check.ts
 orca plugin dev load .
 ```

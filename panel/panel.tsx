@@ -2,25 +2,27 @@
 import {
   atom,
   Badge,
+  Box,
   Button,
   Callout,
   EmptyState,
   IconButton,
-  List,
-  ListItem,
+  Link,
+  on,
   plugin,
   read,
   RelativeTime,
   Row,
   Select,
+  Separator,
   set,
-  shell,
   Skeleton,
   Stack,
   Tab,
   Tabs,
   Text,
-  update
+  update,
+  type PanelContext
 } from 'orca'
 
 type Repo = {
@@ -32,6 +34,7 @@ type Repo = {
   starsInPeriod: number
 }
 type Entry = { at: number; repos: Repo[]; fresh: string[] }
+type Filters = { tab: string; lang: string }
 
 const STALE_MS = 15 * 60 * 1000
 const PERIODS = [
@@ -39,8 +42,9 @@ const PERIODS = [
   { value: 'weekly', label: 'Week', gained: 'this week' },
   { value: 'monthly', label: 'Month', gained: 'this month' }
 ]
-// Values are GitHub's own /trending/<language> names.
+// Values are GitHub's own /trending/<language> names, plus 'auto' and 'all'.
 const LANGUAGES = [
+  { value: 'auto', label: 'Match workspace' },
   { value: 'all', label: 'All languages' },
   { value: 'typescript', label: 'TypeScript' },
   { value: 'javascript', label: 'JavaScript' },
@@ -57,20 +61,31 @@ const LANGUAGES = [
   { value: 'php', label: 'PHP' },
   { value: 'shell', label: 'Shell' }
 ]
+const labelOf = (lang: string) => LANGUAGES.find((l) => l.value === lang)?.label ?? lang
 
 // Remembered between runs, so the panel opens on the person's last view with data already there.
-const filters = atom('filters', { since: 'weekly', lang: 'all' }, { persist: 'plugin' })
+// version 2: `since` became `tab` (it can also be 'saved'), and the language defaults to the workspace's.
+const filters = atom<Filters>('filters', { tab: 'weekly', lang: 'auto' }, { persist: 'plugin', version: 2 })
 const cache = atom<Record<string, Entry>>('cache', {}, { persist: 'plugin' })
+const saved = atom<Repo[]>('saved', [], { persist: 'plugin' })
+const workspace = atom<{ language: string | null; name: string | null }>({ language: null, name: null })
 const loading = atom(false)
 const error = atom<string | null>(null)
 
-const keyOf = (f: { since: string; lang: string }) => `${f.since}|${f.lang}`
+/** The language to ask GitHub for: the workspace's when matching, else the chosen one. */
+const effectiveLang = () => {
+  const { lang } = read(filters)
+  return lang === 'auto' ? (read(workspace).language ?? 'all') : lang
+}
+const keyOf = (since: string, lang: string) => `${since}|${lang}`
 const fmt = new Intl.NumberFormat()
 let seq = 0
 
 async function load(force = false): Promise<void> {
-  const f = read(filters)
-  const key = keyOf(f)
+  const since = read(filters).tab
+  if (since === 'saved') return
+  const lang = effectiveLang()
+  const key = keyOf(since, lang)
   const previous = read(cache)[key]
   if (!force && previous && Date.now() - previous.at < STALE_MS) {
     set(error, null)
@@ -82,7 +97,7 @@ async function load(force = false): Promise<void> {
   try {
     const repos: Repo[] = await plugin.request(
       'trending.list',
-      { since: f.since, language: f.lang === 'all' ? '' : f.lang },
+      { since, language: lang === 'all' ? '' : lang },
       { timeoutMs: 20000 }
     )
     if (mine !== seq) return
@@ -101,35 +116,94 @@ async function load(force = false): Promise<void> {
   }
 }
 
-function change(next: Partial<{ since: string; lang: string }>): void {
+async function matchWorkspace(): Promise<void> {
+  try {
+    set(workspace, await plugin.request('workspace.language', {}, { timeoutMs: 10000 }))
+  } catch {
+    set(workspace, { language: null, name: null }) // falls back to all languages
+  }
+  if (read(filters).lang === 'auto') void load()
+}
+
+function change(next: Partial<Filters>): void {
   update(filters, (f) => ({ ...f, ...next }))
   void load()
 }
 
-export function setup(): void {
+function toggleSaved(repo: Repo): void {
+  update(saved, (list) =>
+    list.some((r) => r.fullName === repo.fullName)
+      ? list.filter((r) => r.fullName !== repo.fullName)
+      : [repo, ...list]
+  )
+}
+
+export function setup(ctx: PanelContext): void {
+  ctx.subscriptions.push(
+    // Fires once on subscribe and again each time the focused workspace changes.
+    on('workspace.changed', () => void matchWorkspace()),
+    plugin.on('trending.refresh', () => void load(true))
+  )
   void load()
 }
 
 const short = (s: string) => (s.length > 110 ? s.slice(0, 107).trimEnd() + '…' : s)
 
-function Body() {
+function RepoRows({ repos, fresh, gained, showLanguage }: { repos: Repo[]; fresh: Set<string>; gained: string; showLanguage: boolean }) {
+  const savedNames = new Set(read(saved).map((r) => r.fullName))
+  return (
+    <Stack gap="sm">
+      {repos.map((r) => {
+        const isSaved = savedNames.has(r.fullName)
+        return (
+          <Stack key={r.fullName} gap="sm">
+            <Box direction="row" gap="xs" justify="between" align="start">
+              <Box grow gap="xs" minWidth={0}>
+                <Text weight="semibold">
+                  <Link href={r.url}>{r.fullName}</Link>
+                </Text>
+                {r.description ? (
+                  <Text muted size="sm">
+                    {short(r.description)}
+                  </Text>
+                ) : null}
+                <Row gap="xs" wrap align="center">
+                  {fresh.has(r.fullName) ? <Badge tone="accent">new</Badge> : null}
+                  {r.language && showLanguage ? <Badge>{r.language}</Badge> : null}
+                  <Text muted size="xs">
+                    {r.starsInPeriod && gained ? `+${fmt.format(r.starsInPeriod)} ${gained} · ` : ''}★ {fmt.format(r.stars)}
+                  </Text>
+                </Row>
+              </Box>
+              <IconButton
+                icon="star"
+                size="sm"
+                variant={isSaved ? 'solid' : 'ghost'}
+                label={isSaved ? `Remove ${r.fullName} from saved` : `Save ${r.fullName}`}
+                onPress={() => toggleSaved(r)}
+              />
+            </Box>
+            <Separator />
+          </Stack>
+        )
+      })}
+    </Stack>
+  )
+}
+
+function Trending({ since }: { since: string }) {
   const f = read(filters)
-  const entry = read(cache)[keyOf(f)]
+  const lang = effectiveLang()
+  const entry = read(cache)[keyOf(since, lang)]
   const busy = read(loading)
   const failed = read(error)
-  const gained = PERIODS.find((p) => p.value === f.since)?.gained ?? ''
-  const fresh = new Set(entry?.fresh ?? [])
+  const ws = read(workspace)
+  const gained = PERIODS.find((p) => p.value === since)?.gained ?? ''
 
   return (
     <Stack gap="sm">
       <Row gap="xs" justify="between" align="center">
-        <Select
-          label="Language"
-          labelHidden
-          value={f.lang}
-          options={LANGUAGES}
-          onChange={(lang) => change({ lang })}
-        />
+        <Select label="Language" labelHidden value={f.lang} options={LANGUAGES} onChange={(lang) => change({ lang })} />
         <Row gap="xs" align="center">
           {entry ? (
             <Text muted size="xs">
@@ -139,6 +213,14 @@ function Body() {
           <IconButton icon="refresh" label="Refresh" variant="ghost" disabled={busy} onPress={() => void load(true)} />
         </Row>
       </Row>
+
+      {f.lang === 'auto' ? (
+        <Text muted size="xs">
+          {ws.language
+            ? `${labelOf(ws.language)}, from ${ws.name ?? 'this workspace'}`
+            : 'No language found for this workspace. Showing all languages.'}
+        </Text>
+      ) : null}
 
       {failed ? (
         <Callout tone="danger" title="Could not load trending">
@@ -160,37 +242,32 @@ function Body() {
       ) : null}
 
       {entry && entry.repos.length > 0 ? (
-        <List label="Trending repositories">
-          {entry.repos.map((r) => (
-            <ListItem
-              key={r.fullName}
-              title={r.fullName}
-              description={short(r.description)}
-              onPress={() => void shell.openExternal(r.url)}
-            >
-              <Row gap="xs" wrap align="center">
-                {fresh.has(r.fullName) ? <Badge tone="accent">new</Badge> : null}
-                {r.language && f.lang === 'all' ? <Badge>{r.language}</Badge> : null}
-                <Text muted size="xs">
-                  {r.starsInPeriod ? `+${fmt.format(r.starsInPeriod)} ${gained} · ` : ''}★ {fmt.format(r.stars)}
-                </Text>
-              </Row>
-            </ListItem>
-          ))}
-        </List>
+        <RepoRows repos={entry.repos} fresh={new Set(entry.fresh)} gained={gained} showLanguage={lang === 'all'} />
       ) : null}
     </Stack>
   )
 }
 
+function Saved() {
+  const list = read(saved)
+  return list.length ? (
+    <RepoRows repos={list} fresh={new Set()} gained="" showLanguage />
+  ) : (
+    <EmptyState title="Nothing saved yet" description="Press the star on a repository to keep it here." icon="star" />
+  )
+}
+
 export default function Panel() {
   return (
-    <Tabs label="Trending period" value={read(filters).since} onChange={(since) => change({ since })}>
+    <Tabs label="GitHub Trending" value={read(filters).tab} onChange={(tab) => change({ tab })}>
       {PERIODS.map((p) => (
         <Tab key={p.value} value={p.value} label={p.label}>
-          <Body />
+          <Trending since={p.value} />
         </Tab>
       ))}
+      <Tab value="saved" label="Saved" icon="star">
+        <Saved />
+      </Tab>
     </Tabs>
   )
 }

@@ -4,17 +4,52 @@
   "execution": "trusted-worker",
   "id": "github-trending",
   "name": "GitHub Trending",
-  "version": "1.1.0",
-  "description": "Browse today's, this week's and this month's trending GitHub repositories in a side panel, optionally filtered by language.",
-  "author": { "name": "Eric Tai" },
+  "version": "1.2.0",
+  "description": "Trending GitHub repositories in a side panel: by period and language, matched to the workspace you have open, with a saved list and a status bar item.",
+  "author": {
+    "name": "Eric Tai"
+  },
   "repository": "https://github.com/cplog/trending-for-orca",
   "license": "MIT",
-  "engines": { "orca": ">=1.4.247" },
+  "engines": {
+    "orca": ">=1.4.248"
+  },
   "pluginApi": 1,
   "main": "worker/main.mjs",
   "contributes": {
     "panels": [
-      { "id": "trending", "title": "GitHub Trending", "icon": "rocket", "entry": "panel/panel.tsx", "ui": "components" }
+      {
+        "id": "trending",
+        "title": "GitHub Trending",
+        "icon": "rocket",
+        "entry": "panel/panel.tsx",
+        "ui": "components"
+      }
+    ],
+    "commands": [
+      {
+        "id": "trending.toggle",
+        "title": "GitHub Trending: Show or hide side panel",
+        "action": "sidebar.right.toggle"
+      },
+      {
+        "id": "trending.refresh",
+        "title": "GitHub Trending: Refresh"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "top",
+        "icon": "rocket",
+        "text": "Trending",
+        "tooltip": "Top trending on GitHub today",
+        "command": "trending.toggle"
+      }
     ]
-  }
+  },
+  "capabilities": [
+    {
+      "kind": "workspace:read"
+    }
+  ]
 }
